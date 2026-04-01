@@ -3,6 +3,7 @@
 # Commit & Repository Rules (for `pdfx-support` workflow)
 
 **Shortly:** Work in your personal `pdfx-support-<name>` branch, push weekly deliverables only to `pdfx-support`, never `git add .` blindly, write English commit messages starting with a capitalized verb (e.g., `Add:`, `Fix:`), run tests and pre-commit locally, and open focused PRs for review.
+
 **Full rules in Ukrainian/Українською:** [Інструкції та вказівки](RULES.uk.md)
 
 ## Project Overview
