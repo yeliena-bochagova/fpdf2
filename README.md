@@ -1,5 +1,7 @@
 # Implementing PDF/X-1a Industry Standard in fpdf2
 
+**Мова:** [Українська](README.uk.md) · **English** (this file)
+
 ## Project Overview
 **Engineering Goal:** Extend the library's architecture to support the ISO 15930 (PDF/X-1a) standard, ensuring automatic validation (Compliance Enforcement) and color profile embedding. 
 The project is divided into three main roles, 100 hours each. This ensures a formal distribution of responsibilities. The total estimated workload is 300 hours.
