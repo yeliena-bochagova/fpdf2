@@ -1,89 +1,9 @@
 # Implementing PDF/X-1a Industry Standard in fpdf2
 
-**Мова:** [Українська](README.uk.md) · **English** (this file)
-
 # Commit & Repository Rules (for `pdfx-support` workflow)
 
-## 1. Branching and where to push
-- **Each team member works in their own branch** named:  
-  `pdfx-support-<your-role>` (example: `pdfx-support-qa`).
-- **Weekly deliverables** (finished work for the week) are pushed **only** to the shared integration branch **`pdfx-support`**.
-- **`main` is reserved** for syncing with the upstream parent repository only. Do **not** push feature work directly to `main`.
-
-## 2. What NOT to do (professional warning)
-- **Do not run `git add .` and push everything** from your working tree. This was a past source of noise and accidental uploads of unrelated files.  
-  - Unstaged, unrelated, or large files must **not** be included in weekly pushes.
-  - If you accidentally staged unrelated files, **unstage** them before committing (see commands below).
-- **Do not commit secrets, large binaries, or generated artifacts**. Use `.gitignore` or `.git/info/exclude`
-
-## 3. Commit message rules (mandatory)
-- **Language:** English only.
-- **Format:** Start with a **capitalized verb** describing the action. The first word must be a verb such as `Add`, `Fix`, `Update`, `Remove`, `Refactor`, `Docs`, `Test`, `Chore`.  
-  - **Structure:** `Verb(scope): short description` or `Verb: short description`  
-  - **Examples:**  
-    - `Add: PageBoxes support for add_page`  
-    - `Fix: font embedding check for TrueType fonts`  
-    - `Update: pdf.output to accept pdf_x=True`  
-    - `Docs: add WorkPlan and contribution rules`
-- **One logical change per commit.** Avoid mixing unrelated fixes in a single commit.
-
-## 4. Staging and committing workflow (recommended commands)
-- **Stage interactively** to avoid `git add .` mistakes:
-  ```bash
-  git add -p            # interactively choose hunks
-  git add <file>        # add specific file(s)
-  ```
-- **Unstage or remove accidental files:**
-  ```bash
-  git restore --staged path/to/file   # unstage a file
-  git rm --cached path/to/file        # stop tracking a file but keep it locally
-  ```
-- **Amend or squash before pushing** to keep history clean:
-  ```bash
-  git commit --amend --no-edit
-  git rebase -i HEAD~N
-  ```
-- **Before pushing**, run:
-  ```bash
-  git status
-  git diff --staged --name-only
-  ```
-
-## 5. Pull request and review rules
-- **PR target:** personal branch → `pdfx-support`. Do not PR directly to `main`.
-- **CI must pass** (tests + linters + pre-commit) before requesting review.
-- **Keep PRs focused**: one feature/bugfix per PR. Large features can be split into multiple PRs.
-
-## 6. Tests, linters and pre-commit
-- **Run tests locally** before pushing: `pytest` (or the project test command).
-- **Install and use pre-commit hooks** (if configured):  
-  ```bash
-  pip install pre-commit
-  pre-commit install
-  pre-commit run --all-files
-  ```
-- Fix linter/formatter issues locally; do not rely on CI to fix code style.
-
-## 7. Files and artifacts
-- **Do not commit generated files** (build artifacts, `.pyc`, virtual envs, large PDFs) — add them to `.gitignore` or `.git/info/exclude`.
-- **If a generated file was accidentally committed**, remove it from history or at least from the index and commit the removal:
-  ```bash
-  git rm --cached path/to/generated.file
-  git commit -m "Chore: remove generated artifact from repo"
-  ```
-
-## 8. Example checklist before pushing to `pdfx-support`
-- [ ] I worked in `pdfx-support-<my-name>` branch.
-- [ ] I staged only relevant files (`git add -p` used).
-- [ ] Commit messages are in English, start with a capitalized verb, and describe the object changed.
-- [ ] All tests pass locally.
-- [ ] Pre-commit hooks and linters pass.
-- [ ] No secrets or large binaries are included.
-- [ ] PR description explains how to test and what changed.
-
----
-
-**Summary (one-line):** Work in your personal `pdfx-support-<name>` branch, push weekly deliverables only to `pdfx-support`, never `git add .` blindly, write English commit messages starting with a capitalized verb (e.g., `Add:`, `Fix:`), run tests and pre-commit locally, and open focused PRs for review.
+**Shortly:** Work in your personal `pdfx-support-<name>` branch, push weekly deliverables only to `pdfx-support`, never `git add .` blindly, write English commit messages starting with a capitalized verb (e.g., `Add:`, `Fix:`), run tests and pre-commit locally, and open focused PRs for review.
+**Full rules in Ukrainian/Українською:** [Інструкції та вказівки](RULES.uk.md)
 
 ## Project Overview
 **Engineering Goal:** Extend the library's architecture to support the ISO 15930 (PDF/X-1a) standard, ensuring automatic validation (Compliance Enforcement) and color profile embedding. 
