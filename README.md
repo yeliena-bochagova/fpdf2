@@ -84,7 +84,6 @@
 ---
 
 **Summary (one-line):** Work in your personal `pdfx-support-<name>` branch, push weekly deliverables only to `pdfx-support`, never `git add .` blindly, write English commit messages starting with a capitalized verb (e.g., `Add:`, `Fix:`), run tests and pre-commit locally, and open focused PRs for review.
-``` оформи всю відповідь в markdown вікно коду 
 
 ## Project Overview
 **Engineering Goal:** Extend the library's architecture to support the ISO 15930 (PDF/X-1a) standard, ensuring automatic validation (Compliance Enforcement) and color profile embedding. 
