@@ -182,15 +182,16 @@ def preload_image(
         info["iccp_i"] = None
         iccp = info.get("iccp")
         if iccp is not None:
+            assert isinstance(iccp, bytes)
             LOGGER.debug(
                 "ICC profile found for image %s - It will be inserted in the PDF document",
                 raster_name,
             )
             if iccp in image_cache.icc_profiles:
-                info["iccp_i"] = image_cache.icc_profiles[iccp]  # type: ignore[index]
+                info["iccp_i"] = image_cache.icc_profiles[iccp]
             else:
                 iccp_i = len(image_cache.icc_profiles)
-                image_cache.icc_profiles[iccp] = iccp_i  # type: ignore[index]
+                image_cache.icc_profiles[iccp] = iccp_i
                 info["iccp_i"] = iccp_i
             info["iccp"] = None
         image_cache.images[raster_name] = info
