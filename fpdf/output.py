@@ -484,6 +484,8 @@ class PDFPage(PDFObject):
         "annots",
         "group",
         "media_box",
+        "trim_box",
+        "bleed_box",
         "struct_parents",
         "resources",
         "parent",
@@ -509,6 +511,8 @@ class PDFPage(PDFObject):
         self.annots: Optional[PDFArray] = PDFArray()  # list of PDFAnnotation
         self.group: Optional[str] = None
         self.media_box: Optional[str] = None
+        self.trim_box: Optional[Sequence[float]] = None   
+        self.bleed_box: Optional[Sequence[float]] = None
         self.struct_parents: Optional[int] = None
         self.resources: Optional[PDFResources] = (
             None  # must always be set before calling .serialize()
