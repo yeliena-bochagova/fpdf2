@@ -360,6 +360,7 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
 
         self._angle: float = 0  # used by deprecated method: rotate()
         self.xmp_metadata = None
+        self.pdf_x_mode = False
         # Define the compression algorithm used when embedding images:
         self.page_duration = 0  # optional pages display duration, cf. add_page()
         self.page_transition = None  # optional pages transition, cf. add_page()
@@ -1174,6 +1175,24 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
             transition or self.page_transition,
             new_page=not self._has_next_page(),
         )
+        if getattr(self, "pdf_x_mode", False):
+            bleed_mm = 3 
+            b_pt = bleed_mm * self.k 
+            
+            # Получаем объект текущей страницы
+            current_page = self.pages[self.page]
+
+            t_coords = (0, 0, self.w * self.k, self.h * self.k)
+            b_coords = (
+                -b_pt, 
+                -b_pt, 
+                (self.w * self.k) + b_pt, 
+                (self.h * self.k) + b_pt
+            )
+
+            current_page.trim_box = t_coords
+            current_page.bleed_box = b_coords
+            current_page.media_box = f"[{b_coords[0]:.2f} {b_coords[1]:.2f} {b_coords[2]:.2f} {b_coords[3]:.2f}]"
 
         self.pages[self.page].set_page_label(current_page_label, new_page_label)
 
@@ -1236,6 +1255,7 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
             self._write_dash_pattern(
                 dash_pattern["dash"], dash_pattern["gap"], dash_pattern["phase"]
             )
+
         # END Page header
 
     def _render_footer(self) -> None:
