@@ -1178,8 +1178,7 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
         if getattr(self, "pdf_x_mode", False):
             bleed_mm = 3 
             b_pt = bleed_mm * self.k 
-            
-            # Получаем объект текущей страницы
+
             current_page = self.pages[self.page]
 
             t_coords = (0, 0, self.w * self.k, self.h * self.k)
