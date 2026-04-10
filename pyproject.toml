@@ -162,3 +162,4 @@ reportMissingImports = true
 reportMissingTypeStubs = false
 reportUnnecessaryIsInstance = false
 reportUnnecessaryComparison = false
+reportDeprecated = false
