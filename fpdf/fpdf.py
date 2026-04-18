@@ -1176,17 +1176,17 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
             new_page=not self._has_next_page(),
         )
         if getattr(self, "pdf_x_mode", False):
-            bleed_mm = 3 
-            b_pt = bleed_mm * self.k 
+            bleed_mm = 3
+            b_pt = bleed_mm * self.k
 
             current_page = self.pages[self.page]
 
             t_coords = (0, 0, self.w * self.k, self.h * self.k)
             b_coords = (
-                -b_pt, 
-                -b_pt, 
-                (self.w * self.k) + b_pt, 
-                (self.h * self.k) + b_pt
+                -b_pt,
+                -b_pt,
+                (self.w * self.k) + b_pt,
+                (self.h * self.k) + b_pt,
             )
 
             current_page.trim_box = t_coords
