@@ -2,24 +2,30 @@ import pytest
 import math
 from fpdf import FPDF
 
+
 # Testing different page formats to ensure geometric math is consistent
-@pytest.mark.parametrize("page_format, width_mm, height_mm", [
-    ("A4", 210.0, 297.0),
-    ("A3", 297.0, 420.0),
-    ("A5", 148.0, 210.0),
-    ("Letter", 215.9, 279.4),
-])
-def test_pdfx_page_boxes_dimensions(page_format: str, width_mm: float, height_mm: float) -> None:
+@pytest.mark.parametrize(
+    "page_format, width_mm, height_mm",
+    [
+        ("A4", 210.0, 297.0),
+        ("A3", 297.0, 420.0),
+        ("A5", 148.0, 210.0),
+        ("Letter", 215.9, 279.4),
+    ],
+)
+def test_pdfx_page_boxes_dimensions(
+    page_format: str, width_mm: float, height_mm: float
+) -> None:
     """Verify MediaBox, TrimBox, and BleedBox values for various page sizes."""
     pdf = FPDF(format=page_format)
 
-    pdf.pdf_x_mode = True 
+    pdf.pdf_x_mode = True
     pdf.add_page()
-    
+
     page = pdf.pages[1]
     k: float = pdf.k
-    bleed_pt: float = 3.0 * k # Standard 3mm bleed for PDF/X
-    
+    bleed_pt: float = 3.0 * k  # Standard 3mm bleed for PDF/X
+
     expected_w_pt: float = width_mm * k
     expected_h_pt: float = height_mm * k
 
@@ -35,10 +41,39 @@ def test_pdfx_page_boxes_dimensions(page_format: str, width_mm: float, height_mm
 
     # 3. Validate MediaBox (Physical medium size)
     assert isinstance(page.media_box, str)
-    
+
     actual_values = [float(x) for x in page.media_box.strip("[]").split()]
-    expected_values = [-bleed_pt, -bleed_pt, expected_w_pt + bleed_pt, expected_h_pt + bleed_pt]
+    expected_values = [
+        -bleed_pt,
+        -bleed_pt,
+        expected_w_pt + bleed_pt,
+        expected_h_pt + bleed_pt,
+    ]
 
     # Compare each coordinate with a small tolerance (0.02 points)
     for actual, expected in zip(actual_values, expected_values):
-        assert math.isclose(actual, expected, abs_tol=0.02), f"Value {actual} deviates too much from {expected}"
+        assert math.isclose(
+            actual, expected, abs_tol=0.02
+        ), f"Value {actual} deviates too much from {expected}"
+
+
+def test_pdfx_serialization_output() -> None:
+    """Verify that TrimBox and BleedBox are correctly written into the actual PDF source code."""
+    pdf = FPDF()
+    pdf.pdf_x_mode = True
+    pdf.add_page()
+
+    # pdf.output() triggers the OutputProducer and the serialize method in output.py
+    # decoding with latin-1 because PDF is a binary-safe format
+    pdf_raw_code: str = pdf.output().decode("latin-1")
+
+    # Check if the serialized string contains the correct PDF dictionary keys
+    assert (
+        "/TrimBox" in pdf_raw_code
+    ), "❌ Error: /TrimBox missing in the final PDF source!"
+    assert (
+        "/BleedBox" in pdf_raw_code
+    ), "❌ Error: /BleedBox missing in the final PDF source!"
+
+    # This specifically tests the f-string logic you wrote in output.py
+    assert "/TrimBox [0.00 0.00" in pdf_raw_code

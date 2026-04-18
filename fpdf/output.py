@@ -587,6 +587,33 @@ class PDFPage(PDFObject):
             self.annots = PDFArray()
         self.annots.append(annotation)
 
+    def serialize(
+        self,
+        obj_dict: Optional[dict[str, Any]] = None,
+        _security_handler: Optional["StandardSecurityHandler"] = None,
+    ) -> str:
+        """
+        Custom serialization for PDFPage to include PDF/X boxes.
+        """
+        # We use the provided obj_dict if it exists, or build a new one from __slots__
+        page_dict = obj_dict or build_obj_dict(
+            {
+                key: getattr(self, key)
+                for key in self.__slots__
+                if not key.startswith("_")
+            },
+            _security_handler=_security_handler,
+        )
+
+        # Manually format TrimBox and BleedBox as PDF arrays [left bottom right top]
+        if self.trim_box:
+            page_dict["/TrimBox"] = f"[{' '.join(f'{v:.2f}' for v in self.trim_box)}]"
+        if self.bleed_box:
+            page_dict["/BleedBox"] = f"[{' '.join(f'{v:.2f}' for v in self.bleed_box)}]"
+
+        # Return the final serialized PDF object
+        return f"{self.id} 0 obj\n{pdf_dict(page_dict)}\nendobj"
+
 
 class PDFPagesRoot(PDFObject):
     def __init__(self, count: int, media_box: str) -> None:
