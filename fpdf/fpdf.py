@@ -1175,23 +1175,27 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
             transition or self.page_transition,
             new_page=not self._has_next_page(),
         )
-        if getattr(self, "pdf_x_mode", False):
-            bleed_mm = 3
-            b_pt = bleed_mm * self.k
 
+        # Updated PDF/X Page Boxes logic with rounding
+        if getattr(self, "pdf_x_mode", False):
+            bleed_mm = 3.0
+            b_pt = bleed_mm * self.k
             current_page = self.pages[self.page]
 
-            t_coords = (0, 0, self.w * self.k, self.h * self.k)
-            b_coords = (
-                -b_pt,
-                -b_pt,
-                (self.w * self.k) + b_pt,
-                (self.h * self.k) + b_pt,
-            )
+            # rounding to 2 decimal places for consistency in the PDF source
+            w_pt = round(self.w * self.k, 2)
+            h_pt = round(self.h * self.k, 2)
+            b_val = round(b_pt, 2)
 
-            current_page.trim_box = t_coords
-            current_page.bleed_box = b_coords
+            # Use PDFArray with rounded floats
+            current_page.trim_box = PDFArray([0.0, 0.0, w_pt, h_pt])
+
+            b_coords = [-b_val, -b_val, w_pt + b_val, h_pt + b_val]
+            current_page.bleed_box = PDFArray(b_coords)
+
+            # MediaBox formatting (already has .2f in your code, which is good)
             current_page.media_box = f"[{b_coords[0]:.2f} {b_coords[1]:.2f} {b_coords[2]:.2f} {b_coords[3]:.2f}]"
+        # -----------------------------------------------------
 
         self.pages[self.page].set_page_label(current_page_label, new_page_label)
 
