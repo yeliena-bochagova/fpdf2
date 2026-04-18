@@ -51,3 +51,4 @@ if __name__ == "__main__":
         print(e)
     except Exception as e:
         print(f"❌ Виникла непередбачувана помилка: {e}")
+        
