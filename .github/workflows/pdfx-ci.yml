@@ -1,0 +1,61 @@
+name: pdfx-ci
+
+on:
+  pull_request:
+    branches:
+      - feat/pdfx-support
+  push:
+    branches:
+      - feat/pdfx-support
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml', '**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[dev,test]
+          pip install pyright pre-commit
+
+      - name: Run pre-commit hooks (format, typos, pylint hooks)
+        run: pre-commit run --all-files --show-diff-on-failure
+
+        # Якщо pre-commit змінює файли, цей крок завершиться з кодом 1 — автор має повторно закомітити зміни.
+
+      - name: Run format check (black)
+        run: black --check .
+
+      - name: Run linters (pylint)
+        run: pylint fpdf || true
+
+      - name: Type checking (mypy + pyright)
+        run: |
+          mypy || true
+          pyright || true
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Upload test results (optional)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: ./tests/.pytest_cache || ./htmlcov || ./coverage.xml
