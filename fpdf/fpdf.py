@@ -2713,6 +2713,13 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
         self.current_font = self.fonts[fontkey]
         self.current_font_is_set_on_page = False
 
+        if self.pdf_x_mode and self.current_font and self.current_font.type != "TTF":
+            raise FPDFException(
+                f"PDF/X mode requires all fonts to be embedded. "
+                f"The core font '{family}' cannot be used. "
+                "Please use add_font() to embed a TrueType or OpenType font."
+            )
+
     def set_font_size(self, size: float) -> None:
         """
         Configure the font size in points
