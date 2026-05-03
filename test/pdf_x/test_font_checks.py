@@ -23,3 +23,20 @@ def test_pdfx_allows_core_font_when_mode_off():
     # This should work fine
     pdf.set_font("helvetica", size=12)
     assert pdf.font_family == "helvetica"
+
+
+def test_pdfx_blocks_core_font_at_output_stage():
+    """Verify that PDF/X mode prevents export if a core font was somehow included."""
+    pdf = FPDF()
+    pdf.pdf_x_mode = False
+
+    pdf.add_page()
+
+    pdf.set_font("helvetica", size=12)
+
+    pdf.pdf_x_mode = True
+
+    with pytest.raises(
+        FPDFException, match="PDF/X export failed: font 'helvetica' is not embedded"
+    ):
+        pdf.output()

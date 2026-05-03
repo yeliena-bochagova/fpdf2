@@ -6555,6 +6555,13 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
                                 str(self.pages_count)
                             ).encode("latin-1"),
                         )
+            if self.pdf_x_mode:
+                for _, font in self.fonts.items():
+                    if font.type != "TTF":
+                        raise FPDFException(
+                            f"PDF/X export failed: font '{font.fontkey}' is not embedded. "
+                            "All fonts must be embedded via add_font() in PDF/X mode."
+                        )
             for _, font in self.fonts.items():
                 if isinstance(font, TTFFont) and font.color_font:
                     font.color_font.load_glyphs()
