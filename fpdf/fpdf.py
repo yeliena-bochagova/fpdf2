@@ -18,6 +18,7 @@ import re
 import sys
 import types
 import warnings
+from copy import copy as shallow_copy, deepcopy
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -469,6 +470,7 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
 
         # final buffer holding the PDF document in-memory - defined only after calling output():
         self.buffer: Optional[bytearray] = None
+        self._last_output_pdf_x_mode: Optional[str] = None
 
     @property
     def fonts(self) -> dict[str, CoreFont | TTFFont]:
@@ -6542,6 +6544,30 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
         """
         # Clear cache of cached functions to free up memory after output
         get_unicode_script.cache_clear()
+        pdf_x_requested = self._normalize_pdf_x_request(pdf_x, pdf_x_mode)
+        if self.buffer and self._last_output_pdf_x_mode == pdf_x_requested:
+            if name:
+                if isinstance(name, (str, os.PathLike)):
+                    Path(name).write_bytes(self.buffer)
+                else:
+                    name.write(self.buffer)
+                return None
+            return self.buffer
+        if self.buffer and self._last_output_pdf_x_mode != pdf_x_requested:
+            if linearize:
+                output_producer_class = LinearizedOutputProducer
+            self.buffer = self._bufferize_output(
+                output_producer_class=output_producer_class,
+                pdf_x_requested=pdf_x_requested,
+            )
+            self._last_output_pdf_x_mode = pdf_x_requested
+            if name:
+                if isinstance(name, (str, os.PathLike)):
+                    Path(name).write_bytes(self.buffer)
+                else:
+                    name.write(self.buffer)
+                return None
+            return self.buffer
         # Finish document if necessary:
         if not self.buffer:
             if self.page == 0:
@@ -6565,9 +6591,6 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
             for _, font in self.fonts.items():
                 if isinstance(font, TTFFont) and font.color_font:
                     font.color_font.load_glyphs()
-            pdf_x_requested = self._normalize_pdf_x_request(pdf_x, pdf_x_mode)
-            if pdf_x_requested:
-                self._ensure_pdfx_xmp_metadata(pdf_x_requested)
             if self._compliance and self._compliance.profile == "PDFA":
                 if len(self._output_intents) == 0:
                     self.add_output_intent(
@@ -6592,8 +6615,11 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
                     )
             if linearize:
                 output_producer_class = LinearizedOutputProducer
-            output_producer = output_producer_class(self)
-            self.buffer = output_producer.bufferize()
+            self.buffer = self._bufferize_output(
+                output_producer_class=output_producer_class,
+                pdf_x_requested=pdf_x_requested,
+            )
+            self._last_output_pdf_x_mode = pdf_x_requested
         if name:
             if isinstance(name, (str, os.PathLike)):
                 Path(name).write_bytes(self.buffer)
@@ -6601,6 +6627,21 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
                 name.write(self.buffer)
             return None
         return self.buffer
+
+    def _bufferize_output(
+        self,
+        *,
+        output_producer_class: Type[OutputProducer],
+        pdf_x_requested: Optional[str],
+    ) -> bytearray:
+        output_pdf = shallow_copy(self)
+        output_pdf.buffer = None
+        output_pdf.pages = deepcopy(self.pages)
+        if pdf_x_requested:
+            # pylint: disable=protected-access
+            output_pdf._ensure_pdfx_xmp_metadata(pdf_x_requested)
+        output_producer = output_producer_class(output_pdf)
+        return output_producer.bufferize()
 
     @staticmethod
     def _normalize_pdf_x_request(

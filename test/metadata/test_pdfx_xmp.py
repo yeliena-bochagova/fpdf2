@@ -93,6 +93,43 @@ def test_pdfx_output_supports_explicit_mode():
     assert b"PDF/X-1a:2001" in content
 
 
+@pytest.mark.parametrize("kwargs", [{}, {"pdf_x": False}])
+def test_pdfx_output_without_pdfx_options_remains_normal(kwargs):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
+    pdf.cell(text="normal output test")
+
+    content = pdf.output(**kwargs)
+
+    assert b"pdfxid:GTS_PDFXVersion" not in content
+    assert b"PDF/X-1a:2001" not in content
+
+
+def test_pdfx_output_mode_toggle_does_not_leak_state():
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
+    pdf.cell(text="mode toggle test")
+
+    normal_content = pdf.output()
+    assert b"pdfxid:GTS_PDFXVersion" not in normal_content
+    assert pdf.xmp_metadata is None
+
+    pdfx_content = pdf.output(pdf_x=True)
+    assert b"pdfxid:GTS_PDFXVersion" in pdfx_content
+    assert b"PDF/X-1a:2001" in pdfx_content
+    assert pdf.xmp_metadata is None
+
+    normal_again = pdf.output()
+    assert b"pdfxid:GTS_PDFXVersion" not in normal_again
+    assert b"PDF/X-1a:2001" not in normal_again
+    assert normal_again != pdfx_content
+
+    pdfx_again = pdf.output(pdf_x_mode="PDF/X-1a:2001")
+    assert pdfx_again == pdfx_content
+
+
 def test_pdfx_output_rejects_unsupported_mode():
     pdf = FPDF()
     pdf.add_page()

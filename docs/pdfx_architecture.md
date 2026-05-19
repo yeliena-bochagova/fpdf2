@@ -335,3 +335,16 @@ sequenceDiagram
 - Current implementation does not yet create a fully valid PDF/X-1a file.
 - Missing pieces still include ICC profile embedding, OutputIntents, color restrictions, font embedding checks, page boxes, and external validation.
 - The result is a staged PDF/X export path, not a full PDF/X compliance implementation.
+
+## Week 5: PDF/X Mode Lifecycle
+
+Week 5 keeps PDF/X support scoped to the export call itself.
+
+- `pdf_x` and `pdf_x_mode` are normalized in `FPDF.output(...)` before serialization starts.
+- `pdf_x=True` resolves to `PDF/X-1a:2001`, while `pdf_x=False` stays on the normal path unless a mode is explicitly requested.
+- The PDF/X XMP packet is generated on a temporary serialization copy, so the exported mode does not remain latched on the live `FPDF` instance.
+- The cached output buffer is associated with the last serialized mode, which lets later normal output regenerate without carrying over temporary PDF/X state.
+- User-supplied XMP remains authoritative when it already contains the required PDF/X identification.
+
+Week 5 does **not** add compliance enforcement beyond this mode lifecycle.
+The following remain future work: ICC profiles, OutputIntents, color validation, font validation, page boxes, and external verification such as veraPDF.
