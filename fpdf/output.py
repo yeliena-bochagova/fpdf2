@@ -484,6 +484,8 @@ class PDFPage(PDFObject):
         "annots",
         "group",
         "media_box",
+        "trim_box",
+        "bleed_box",
         "struct_parents",
         "resources",
         "parent",
@@ -509,6 +511,8 @@ class PDFPage(PDFObject):
         self.annots: Optional[PDFArray] = PDFArray()  # list of PDFAnnotation
         self.group: Optional[str] = None
         self.media_box: Optional[str] = None
+        self.trim_box: Optional[Sequence[float]] = None
+        self.bleed_box: Optional[Sequence[float]] = None
         self.struct_parents: Optional[int] = None
         self.resources: Optional[PDFResources] = (
             None  # must always be set before calling .serialize()
@@ -1864,7 +1868,9 @@ class OutputProducer:
         # Prefer explicitly provided XMP (user-supplied inner <x:xmpmeta/> without xpacket):
         xmp_src = self.fpdf.xmp_metadata
         # If not provided but a PDF/A document is being created, synthesize it:
-        if not xmp_src and self.fpdf._compliance:
+        if not xmp_src and (
+            self.fpdf._compliance or getattr(self.fpdf, "pdf_x_mode", False)
+        ):
             xmp_src = self._build_xmp_from_info()
         if not xmp_src:
             return None
@@ -1889,7 +1895,9 @@ class OutputProducer:
         if isinstance(cdate, datetime):
             creation_date_utc = cdate if cdate.tzinfo else cdate.astimezone()
             creation_date_utc = creation_date_utc.astimezone(timezone.utc)
+
         pdfa = self.fpdf._compliance
+        pdfx = getattr(self.fpdf, "pdf_x_mode", False)
 
         # Escape for XML attributes/PCDATA:
         def esc(s: str) -> str:
@@ -1907,7 +1915,7 @@ class OutputProducer:
             create_dt = creation_date_utc or now
             xmp_create = create_dt.isoformat(timespec="seconds")
             xmp_modify = now.isoformat(timespec="seconds")
-        # Build a single Description that includes everything + pdfaid if requested:
+
         parts = [
             '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fpdf2">',
             "  <rdf:RDF",
@@ -1915,9 +1923,17 @@ class OutputProducer:
             '    xmlns:dc="http://purl.org/dc/elements/1.1/"',
             '    xmlns:xmp="http://ns.adobe.com/xap/1.0/"',
             '    xmlns:pdf="http://ns.adobe.com/pdf/1.3/"',
-            '    xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">',
-            '    <rdf:Description rdf:about=""',
+            '    xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"',
         ]
+
+        # Динамічно закриваємо тег <rdf:RDF> залежно від режиму, запобігаючи XML parsing failure
+        if pdfx:
+            parts.append('    xmlns:pdfx="http://ns.adobe.com/pdfx/1.3/">')
+        else:
+            parts[-1] = parts[-1].replace('id/"', 'id/">')
+
+        parts.append('    <rdf:Description rdf:about=""')
+
         # attributes block (xmp, pdf, pdfaid)
         if creator_tool:
             parts.append(f'        xmp:CreatorTool="{esc(creator_tool)}"')
@@ -1931,6 +1947,7 @@ class OutputProducer:
             keyword_list = ",".join(keywords)
             parts.append(f'        pdf:Keywords="{esc(keyword_list)}"')
         parts.append("      >")
+
         # nested elements (Lang Alt / Seqs)
         if pdfa:
             parts.append(f"      <pdfaid:part>{int(pdfa.part)}</pdfaid:part>")
@@ -1940,6 +1957,12 @@ class OutputProducer:
                 )
             if pdfa.part == 4:
                 parts.append("      <pdfaid:rev>2020</pdfaid:rev>")
+
+        if pdfx:
+            parts.append(
+                "      <pdfx:GTS_PDFXVersion>PDF/X-3:2002</pdfx:GTS_PDFXVersion>"
+            )
+
         if title:
             parts += [
                 "      <dc:title><rdf:Alt>",
@@ -1994,7 +2017,17 @@ class OutputProducer:
 
     def _add_output_intents(self) -> Optional[PDFArray]:
         """should be added in _add_catalog"""
-        output_intents = self.fpdf.output_intents
+        output_intents = list(self.fpdf.output_intents)
+
+        if getattr(self.fpdf, "pdf_x_mode", False) and not output_intents:
+            default_intent = OutputIntentDictionary(
+                subtype="PDFX",
+                output_condition_identifier="Custom",
+                output_condition="sRGB IEC61966-2.1",
+                registry_name="http://www.color.org",
+            )
+            output_intents.append(default_intent)
+
         if not output_intents:
             return None
         for output_intent in output_intents:
@@ -2038,7 +2071,7 @@ class OutputProducer:
         if fpdf.zoom_mode in ZOOM_CONFIGS:
             zoom_config = [
                 pdf_ref(first_page_obj.id),
-                *ZOOM_CONFIGS[fpdf.zoom_mode],  # type: ignore[index]
+                *ZOOM_CONFIGS[fpdf.zoom_mode],
             ]
         else:  # zoom_mode is a number, not one of the allowed strings:
             zoom_config = [
