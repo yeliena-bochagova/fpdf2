@@ -348,3 +348,14 @@ Week 5 keeps PDF/X support scoped to the export call itself.
 
 Week 5 does **not** add compliance enforcement beyond this mode lifecycle.
 The following remain future work: ICC profiles, OutputIntents, color validation, font validation, page boxes, and external verification such as veraPDF.
+
+## Week 6: Cherry-Pick Readiness and Test Coverage
+
+Week 6 is limited to commit hygiene and transfer readiness for the existing PDF/X stack.
+
+- The current commit sequence is logically separated across API design, XMP generation, output integration, architecture documentation, and mode lifecycle safety.
+- PDF/X XMP presence is already covered by tests in `test/metadata/test_pdfx_xmp.py`, including positive, negative, and repeated-output leak checks.
+- `test/test_output.py` keeps a normal repeated-output baseline so PDF/X behavior can be compared against the standard path.
+- No additional PDF/X compliance features are introduced in this week.
+
+This week exists to make the staged work easy to cherry-pick without broadening scope.
