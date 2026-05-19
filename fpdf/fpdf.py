@@ -6503,6 +6503,8 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
         *,
         linearize: bool = False,
         output_producer_class: Type[OutputProducer] = OutputProducer,
+        pdf_x: Optional[bool] = None,
+        pdf_x_mode: Optional[str] = None,
     ) -> bytearray: ...
     @overload
     def output(
@@ -6511,6 +6513,8 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
         *,
         linearize: bool = False,
         output_producer_class: Type[OutputProducer] = OutputProducer,
+        pdf_x: Optional[bool] = None,
+        pdf_x_mode: Optional[str] = None,
     ) -> None: ...
     @deprecated_parameter([("dest", "2.2.0")])
     def output(
@@ -6519,6 +6523,8 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
         *,
         linearize: bool = False,
         output_producer_class: Type[OutputProducer] = OutputProducer,
+        pdf_x: Optional[bool] = None,
+        pdf_x_mode: Optional[str] = None,
     ) -> Optional[bytearray]:
         """
         Output PDF to some destination.
@@ -6531,6 +6537,8 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
         Args:
             name (str): optional File object or file path where to save the PDF under
             output_producer_class (class): use a custom class for PDF file generation
+            pdf_x (bool): enable PDF/X export using the default mode `PDF/X-1a:2001`
+            pdf_x_mode (str): explicitly select a PDF/X export mode
         """
         # Clear cache of cached functions to free up memory after output
         get_unicode_script.cache_clear()
@@ -6557,6 +6565,9 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
             for _, font in self.fonts.items():
                 if isinstance(font, TTFFont) and font.color_font:
                     font.color_font.load_glyphs()
+            pdf_x_requested = self._normalize_pdf_x_request(pdf_x, pdf_x_mode)
+            if pdf_x_requested:
+                self._ensure_pdfx_xmp_metadata(pdf_x_requested)
             if self._compliance and self._compliance.profile == "PDFA":
                 if len(self._output_intents) == 0:
                     self.add_output_intent(
@@ -6590,6 +6601,33 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
                 name.write(self.buffer)
             return None
         return self.buffer
+
+    @staticmethod
+    def _normalize_pdf_x_request(
+        pdf_x: Optional[bool], pdf_x_mode: Optional[str]
+    ) -> Optional[str]:
+        if pdf_x is False and pdf_x_mode is not None:
+            raise ValueError(
+                "pdf_x=False cannot be combined with pdf_x_mode; use pdf_x_mode alone or pdf_x=True"
+            )
+        if pdf_x_mode is not None:
+            return XMPManager(pdf_x_mode=pdf_x_mode).pdf_x_mode
+        if pdf_x:
+            return XMPManager.DEFAULT_PDFX_MODE
+        return None
+
+    def _ensure_pdfx_xmp_metadata(self, pdf_x_mode: str) -> None:
+        if self.xmp_metadata:
+            if self._xmp_metadata_includes_pdfx_mode(pdf_x_mode):
+                return
+            raise ValueError(
+                "PDF/X export requires PDF/X identification XMP, but custom XMP metadata is already set and cannot be safely merged"
+            )
+        self.set_pdfx_xmp_metadata(pdf_x_mode=pdf_x_mode)
+
+    def _xmp_metadata_includes_pdfx_mode(self, pdf_x_mode: str) -> bool:
+        xmp_metadata = self.xmp_metadata or ""
+        return "pdfxid:GTS_PDFXVersion" in xmp_metadata and pdf_x_mode in xmp_metadata
 
 
 # Pattern from sir Guido Von Rossum: https://stackoverflow.com/a/72911884/636849

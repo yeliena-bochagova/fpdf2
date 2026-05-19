@@ -53,7 +53,7 @@ def test_pdfx_xmp_escapes_xml_values():
     assert "p&quot;q" in xmp
 
 
-def test_pdfx_xmp_can_be_inserted_via_existing_metadata_flow(tmp_path):
+def test_pdfx_xmp_can_be_inserted_via_existing_metadata_flow():
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("helvetica", size=12)
@@ -65,3 +65,89 @@ def test_pdfx_xmp_can_be_inserted_via_existing_metadata_flow(tmp_path):
     assert b"GTS_PDFXVersion" in content
     assert b"PDF/X-1a:2001" in content
     assert b"<?xpacket begin=" in content
+
+
+def test_pdfx_output_auto_inserts_xmp_metadata():
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
+    pdf.cell(text="PDF/X XMP integration test")
+
+    content = pdf.output(pdf_x=True)
+
+    assert content.startswith(b"%PDF")
+    assert b"<?xpacket begin=" in content
+    assert b"pdfxid:GTS_PDFXVersion" in content
+    assert b"PDF/X-1a:2001" in content
+
+
+def test_pdfx_output_supports_explicit_mode():
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
+    pdf.cell(text="PDF/X explicit mode test")
+
+    content = pdf.output(pdf_x_mode="PDF/X-1a:2001")
+
+    assert b"pdfxid:GTS_PDFXVersion" in content
+    assert b"PDF/X-1a:2001" in content
+
+
+def test_pdfx_output_rejects_unsupported_mode():
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
+    pdf.cell(text="unsupported mode")
+
+    with pytest.raises(ValueError, match="Unsupported PDF/X mode"):
+        pdf.output(pdf_x_mode="PDF/X-4:2010")
+
+
+def test_pdfx_output_rejects_conflicting_pdfx_request():
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
+    pdf.cell(text="conflicting request")
+
+    with pytest.raises(ValueError, match="cannot be combined"):
+        pdf.output(pdf_x=False, pdf_x_mode="PDF/X-1a:2001")
+
+
+def test_pdfx_output_preserves_existing_pdfx_xmp():
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
+    pdf.cell(text="preexisting pdfx xmp")
+    pdf.set_xmp_metadata("""<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fpdf2">
+    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+        <rdf:Description xmlns:pdfxid="http://www.npes.org/pdfx/ns/id/" rdf:about="">
+            <pdfxid:GTS_PDFXVersion>PDF/X-1a:2001</pdfxid:GTS_PDFXVersion>
+        </rdf:Description>
+    </rdf:RDF>
+</x:xmpmeta>""")
+
+    content = pdf.output(pdf_x=True)
+
+    assert b"pdfxid:GTS_PDFXVersion" in content
+    assert b"PDF/X-1a:2001" in content
+
+
+def test_pdfx_output_rejects_unsafe_custom_xmp_merge():
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
+    pdf.cell(text="unsafe custom xmp")
+    pdf.set_xmp_metadata("""<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fpdf2">
+    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+        <rdf:Description rdf:about="">
+            <dc:title xmlns:dc="http://purl.org/dc/elements/1.1/">
+                <rdf:Alt>
+                    <rdf:li xml:lang="x-default">custom</rdf:li>
+                </rdf:Alt>
+            </dc:title>
+        </rdf:Description>
+    </rdf:RDF>
+</x:xmpmeta>""")
+
+    with pytest.raises(ValueError, match="cannot be safely merged"):
+        pdf.output(pdf_x=True)

@@ -208,3 +208,24 @@ Week 3 should connect PDF/X mode selection (`pdf_x` / `pdf_x_mode`) to XMP gener
 - when a PDF/X mode is requested, invoke `XMPManager` consistently in the output flow,
 - preserve user-overridden metadata behavior where appropriate,
 - add broader PDF/X writer-side requirements beyond XMP identification.
+
+## Week 3 implementation update
+
+Week 3 now wires `pdf.output(pdf_x=True)` into the existing metadata path by normalizing the request in `FPDF.output()` and generating XMP through `FPDF.set_pdfx_xmp_metadata()`, which delegates to `XMPManager` and then reuses the existing `set_xmp_metadata()`/`OutputProducer._add_xmp_metadata()` flow.
+
+Custom XMP precedence rule:
+
+- if no XMP metadata is set yet, `pdf.output(pdf_x=True)` injects a PDF/X identification XMP packet automatically;
+- if user-supplied XMP already contains `pdfxid:GTS_PDFXVersion` with `PDF/X-1a:2001`, it is preserved;
+- if user-supplied XMP exists but does not contain the required PDF/X identification, `pdf.output(pdf_x=True)` raises `ValueError` instead of trying to merge XML.
+
+This still does **not** produce full PDF/X-1a compliance.
+
+Remaining missing requirements include:
+
+- ICC profile embedding;
+- OutputIntents;
+- color validation;
+- embedded font checks;
+- page boxes (TrimBox, BleedBox, etc.);
+- validator integration such as veraPDF.
