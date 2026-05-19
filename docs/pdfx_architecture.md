@@ -359,3 +359,101 @@ Week 6 is limited to commit hygiene and transfer readiness for the existing PDF/
 - No additional PDF/X compliance features are introduced in this week.
 
 This week exists to make the staged work easy to cherry-pick without broadening scope.
+
+## Week 7: Final Architecture Report and Review Instructions
+
+This Week 7 section finalizes the architecture report for the PDF/X work and provides reviewers with clear instructions for code review and testing. This is documentation-only: no runtime or compliance functionality is added in Week 7.
+
+Project goal
+ - Provide a safe, opt-in export path to emit a PDF that includes a PDF/X identification XMP packet (ISO 15930 / PDF/X-1a identification only). Do not claim full PDF/X compliance.
+
+Implemented scope (what this branch provides)
+ - `XMPManager` generates deterministic PDF/X identification XMP.
+ - `FPDF.set_pdfx_xmp_metadata()` is a convenience wrapper to generate and store PDF/X XMP.
+ - `FPDF.output(pdf_x=True)` injects PDF/X identification XMP into the emitted PDF bytes.
+ - `FPDF.output(pdf_x_mode="PDF/X-1a:2001")` is supported and validated.
+ - Unsupported modes raise `ValueError`.
+ - Contradictory options (e.g. `pdf_x=False` with `pdf_x_mode=...`) raise `ValueError`.
+ - PDF/X mode activation is scoped to the `output()` call and does not leak into subsequent normal outputs.
+ - User-supplied compatible XMP is preserved; incompatible custom XMP is rejected rather than merged.
+
+Public API summary
+ - `FPDF.output(..., pdf_x: bool = False, pdf_x_mode: str | None = None)` — export-time control to request PDF/X identification XMP.
+ - `FPDF.set_pdfx_xmp_metadata()` — convenience for setting the PDF/X identification XMP on the document prior to output.
+ - `XMPManager` — builds the XMP XML packet and exposes deterministic `build_xmp()` and `build_xpacket_bytes()` helpers.
+
+Internal architecture summary
+ - `FPDF` handles request normalization via `_normalize_pdf_x_request()` and delegates XMP creation to `XMPManager` through `set_pdfx_xmp_metadata()`.
+ - `OutputProducer._add_xmp_metadata()` remains responsible for wrapping the inner XMP into an xpacket and serializing it into the PDF metadata stream.
+ - The Week 5 lifecycle solution serializes via a temporary copy to avoid mutating live page objects, keeping the mode scoped to the output call.
+
+XMP generation summary
+ - `XMPManager` produces a deterministic XMP packet containing the `pdfxid:GTS_PDFXVersion` element with value `PDF/X-1a:2001` by default.
+ - XML values are escaped and the produced packet is suitable for insertion via the existing metadata stream flow.
+
+Output flow summary
+ - `FPDF.output()` normalizes PDF/X request parameters, ensures XMP metadata is present when requested, and delegates to `OutputProducer` to produce final bytes.
+ - A buffer/cache keyed to the last serialized mode is used to avoid unnecessary recomputation; mode mismatch forces reserialization on a temporary copy.
+
+Mode lifecycle summary
+ - PDF/X mode is transient and output-scoped; enabling it for one `output()` call does not change the `FPDF` object's long-term metadata state.
+ - Repeated PDF/X outputs produce deterministic bytes when the same mode is requested; normal outputs remain unmodified.
+
+Testing and validation summary
+ - The primary tests are located in `test/metadata/test_pdfx_xmp.py` and cover:
+    - XMP generation contains the `GTS_PDFXVersion` identification node and the `PDF/X-1a:2001` value.
+    - Determinism of XMP generation.
+    - Automatic insertion via `pdf.output(pdf_x=True)`.
+    - Explicit mode support and validation.
+    - Negative tests that normal output and `pdf_x=False` do not include PDF/X metadata.
+    - Mode toggle tests ensuring no leakage between calls.
+    - Preservation of compatible user-supplied XMP and rejection of unsafe merges.
+ - Regression and baseline comparisons live in `test/test_output.py`.
+ - Pre-commit hooks and linters are configured and should pass for documentation changes.
+
+Limitations (explicit, do not conflate with compliance)
+ - Files produced by this branch are NOT fully PDF/X-1a compliant. Missing items include:
+    - ICC profile embedding and OutputIntents
+    - Color model enforcement (CMYK/grayscale only) and transparency restrictions
+    - Font embedding validation and enforcement
+    - Page-box (TrimBox/BleedBox) handling
+    - External compliance validation (veraPDF or similar)
+ - These items are intentionally excluded from the Lead Software Architect Week 7 scope and must be implemented under subsequent work phases or by other roles.
+
+Future work (non-exhaustive)
+ - Implement OutputIntents + ICC profile embedding.
+ - Add color and font compliance enforcement.
+ - Add page-box handling and stricter page rendering checks.
+ - Add CI-based veraPDF validation for full compliance verification.
+
+Reviewer / PR instructions
+ - Recommended commit review order (chronological):
+    1. `1d90f9eb` Add: Define PDF/X export API architecture
+    2. `d4a767a6` Add: Generate PDF/X identification XMP metadata
+    3. `a1f808c5` Add: Integrate PDF/X XMP metadata into output flow
+    4. `0192f55a` Add: Document PDF/X export architecture flow
+    5. `9cdd184c` Add: Support PDF/X output mode lifecycle
+    6. `528f94c2` Add: Strengthen PDF/X XMP output tests
+ - Files to inspect:
+    - `fpdf/xmp.py` — XMPManager implementation
+    - `fpdf/fpdf.py` — normalization and output-time handling
+    - `fpdf/__init__.py` — exports
+    - `docs/pdfx_architecture.md` — architecture and limitations
+    - `test/metadata/test_pdfx_xmp.py` — unit tests for XMP and mode lifecycle
+ - Tests to run locally:
+    - `pytest test/metadata/test_pdfx_xmp.py test/metadata/test_info.py test/test_output.py`
+ - Expected manual verification steps:
+    1. Create a simple `FPDF()` document, call `output()` normally — verify no PDF/X metadata is present.
+    2. Call `output(pdf_x=True)` — verify resulting bytes contain `<?xpacket begin=` and `pdfxid:GTS_PDFXVersion` and `PDF/X-1a:2001`.
+    3. Call `output()` again on the same `FPDF` instance — verify no PDF/X metadata in the second output.
+ - Known limitations reviewers should not treat as bugs: absence of ICC/OutputIntent embedding, no color/font enforcement, no page-box behavior, and no external validation.
+
+Reviewer checklist (quick pass)
+ - Check `XMPManager` output contains `GTS_PDFXVersion` and `PDF/X-1a:2001`.
+ - Verify `pdf.output(pdf_x=True)` inserts XMP and that `pdf.output()` does not.
+ - Verify mode toggle tests in `test/metadata/test_pdfx_xmp.py` pass.
+ - Confirm documentation lists the limitations explicitly and avoids claiming full compliance.
+ - Confirm pre-commit and focused tests pass locally.
+
+Ready for PR
+ - This branch is documentation- and test-complete for the staged PDF/X identification feature and is ready to be opened as a focused PR into the shared `pdfx-support` integration branch for review.
