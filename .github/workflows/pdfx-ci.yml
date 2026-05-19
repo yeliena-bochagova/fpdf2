@@ -8,20 +8,25 @@ on:
     branches:
       - feat/pdfx-support
 
+permissions:
+  contents: read
+
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@36447784f29e3b0d3556b513576f7412e9472e41
         with:
           python-version: '3.12'
 
       - name: Cache pip
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6e5690415ed9a30d4502211
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml', '**/requirements*.txt') }}
@@ -37,8 +42,6 @@ jobs:
       - name: Run pre-commit hooks (format, typos, pylint hooks)
         run: pre-commit run --all-files --show-diff-on-failure
 
-        # Якщо pre-commit змінює файли, цей крок завершиться з кодом 1 — автор має повторно закомітити зміни.
-
       - name: Run format check (black)
         run: black --check .
 
@@ -46,16 +49,17 @@ jobs:
         run: pylint fpdf || true
 
       - name: Type checking (mypy + pyright)
+        continue-on-error: true
         run: |
-          mypy || true
-          pyright || true
+          mypy
+          pyright
 
       - name: Run tests
         run: pytest -q
 
       - name: Upload test results (optional)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: pytest-results
           path: ./tests/.pytest_cache || ./htmlcov || ./coverage.xml
