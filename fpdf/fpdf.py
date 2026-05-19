@@ -6673,7 +6673,16 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
     ) -> bytearray:
         output_pdf = shallow_copy(self)
         output_pdf.buffer = None
-        output_pdf.pages = deepcopy(self.pages)
+        # Preserve live embedded-file objects so copied annotations keep the
+        # same FileSpec/EmbeddedFile identity that receives object IDs during
+        # serialization.
+        deepcopy_memo: dict[int, object] = {
+            id(embedded_file): embedded_file for embedded_file in self.embedded_files
+        }
+        for embedded_file in self.embedded_files:
+            file_spec = embedded_file.file_spec()
+            deepcopy_memo[id(file_spec)] = file_spec
+        output_pdf.pages = deepcopy(self.pages, deepcopy_memo)
         if pdf_x_requested:
             # pylint: disable=protected-access
             output_pdf._ensure_pdfx_xmp_metadata(pdf_x_requested)
