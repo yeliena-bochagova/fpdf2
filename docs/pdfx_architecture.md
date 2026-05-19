@@ -229,3 +229,109 @@ Remaining missing requirements include:
 - embedded font checks;
 - page boxes (TrimBox, BleedBox, etc.);
 - validator integration such as veraPDF.
+
+## Week 4: Internal Architecture and Export Flow
+
+Week 4 documents the current PDF/X export structure as it exists after Weeks 1-3.
+The diagrams below are based on the real implementation, and the future components are shown only as planned integration points.
+
+### UML class diagram
+
+``` mermaid
+classDiagram
+      class FPDF {
+         +output(..., pdf_x=None, pdf_x_mode=None)
+         +set_xmp_metadata(xmp_metadata)
+         +set_pdfx_xmp_metadata(...)
+         +_normalize_pdf_x_request(pdf_x, pdf_x_mode)
+         +_ensure_pdfx_xmp_metadata(pdf_x_mode)
+         +_xmp_metadata_includes_pdfx_mode(pdf_x_mode)
+         xmp_metadata: str | None
+      }
+
+      class XMPManager {
+         +DEFAULT_PDFX_MODE
+         +SUPPORTED_PDFX_MODES
+         +build_xmp()
+         +build_xpacket()
+         +build_xpacket_bytes()
+      }
+
+      class OutputProducer {
+         +bufferize()
+         +_add_xmp_metadata()
+      }
+
+      class PDFXmpMetadata
+
+      class PDFXComplianceValidator <<future>>
+      class OutputIntentManager <<future>>
+      class ColorCompliance <<future>>
+      class FontCompliance <<future>>
+      class PageBoxCompliance <<future>>
+
+      FPDF --> XMPManager : creates PDF/X XMP
+      FPDF --> OutputProducer : output_producer_class
+      FPDF --> PDFXmpMetadata : stores inner XMP string
+      OutputProducer --> PDFXmpMetadata : wraps xpacket for serialization
+      FPDF ..> PDFXComplianceValidator : future validation hook
+      OutputProducer ..> OutputIntentManager : future catalog/output-intent hook
+      FPDF ..> ColorCompliance : future color checks
+      FPDF ..> FontCompliance : future font checks
+      FPDF ..> PageBoxCompliance : future page-box checks
+```
+
+### Sequence diagram
+
+``` mermaid
+sequenceDiagram
+      actor User
+      participant FPDF
+      participant XMPManager
+      participant OutputProducer
+      participant PDFXmpMetadata
+
+      User->>FPDF: output(pdf_x=True)
+      FPDF->>FPDF: _normalize_pdf_x_request(True, None)
+      FPDF->>FPDF: resolve default mode PDF/X-1a:2001
+      FPDF->>FPDF: _ensure_pdfx_xmp_metadata("PDF/X-1a:2001")
+
+      alt no existing XMP metadata
+            FPDF->>FPDF: set_pdfx_xmp_metadata(pdf_x_mode="PDF/X-1a:2001")
+            FPDF->>XMPManager: __init__(pdf_x_mode="PDF/X-1a:2001", ...)
+            XMPManager-->>FPDF: build_xmp() with pdfxid:GTS_PDFXVersion
+            FPDF->>FPDF: set_xmp_metadata(xmp_metadata)
+      else existing compatible PDF/X XMP
+            FPDF-->>FPDF: reuse current xmp_metadata
+      end
+
+      FPDF->>OutputProducer: bufferize()
+      OutputProducer->>OutputProducer: _add_xmp_metadata()
+      OutputProducer->>PDFXmpMetadata: wrap xpacket + XML stream
+      PDFXmpMetadata-->>OutputProducer: metadata object
+      OutputProducer-->>User: PDF bytes
+```
+
+### Integration points
+
+- XMP generation is already in place. `FPDF.set_pdfx_xmp_metadata()` creates deterministic PDF/X identification XMP through `XMPManager`, and `FPDF.set_xmp_metadata()` stores the inner XML string.
+- Writer/catalog output-intent work should attach in the serialization path, especially where `OutputProducer` assembles catalog entries and output intent objects.
+- Color compliance should attach around color-setting and image-related APIs, before serialization produces final page content.
+- Font compliance should attach near font selection and embedding decisions, where the code already knows whether a font is embedded or substituted.
+- Page-box logic should attach around page creation and page object serialization, because that is where TrimBox, BleedBox, and related values belong.
+- External validation such as veraPDF should run in tests or CI, not as a normal runtime step inside `pdf.output(...)`.
+
+### Responsibility boundaries
+
+- `FPDF.output(...)` should coordinate export options and request normalization; it should not build XML directly.
+- `FPDF.set_pdfx_xmp_metadata(...)` should remain a convenience wrapper that instantiates `XMPManager` and stores the generated XMP through the existing metadata API.
+- `XMPManager` should generate deterministic PDF/X identification XMP; it should not write PDF objects or manage document serialization.
+- Existing `set_xmp_metadata(...)` and `OutputProducer._add_xmp_metadata()` should remain responsible for storing and serializing metadata into the PDF stream.
+- Future validators should check compliance constraints separately from metadata generation so that each concern stays isolated.
+
+### Current compliance status
+
+- Current implementation adds PDF/X identification XMP to the document.
+- Current implementation does not yet create a fully valid PDF/X-1a file.
+- Missing pieces still include ICC profile embedding, OutputIntents, color restrictions, font embedding checks, page boxes, and external validation.
+- The result is a staged PDF/X export path, not a full PDF/X compliance implementation.
