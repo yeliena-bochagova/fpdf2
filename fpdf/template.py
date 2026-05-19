@@ -711,15 +711,15 @@ class FlexTemplate:
                     with self.pdf.rotation(rotate, offsetx, offsety):
                         if "rotate" in ele and ele["rotate"]:
                             with self.pdf.rotation(ele["rotate"], ele["x1"], ele["y1"]):
-                                self.handlers[handler_name](**ele)
+                                self.handlers[handler_name](**ele)  # type: ignore[operator]
                         else:
-                            self.handlers[handler_name](**ele)
+                            self.handlers[handler_name](**ele)  # type: ignore[operator]
                 else:
                     if "rotate" in ele and ele["rotate"]:
                         with self.pdf.rotation(ele["rotate"], ele["x1"], ele["y1"]):
-                            self.handlers[handler_name](**ele)
+                            self.handlers[handler_name](**ele)  # type: ignore[operator]
                     else:
-                        self.handlers[handler_name](**ele)
+                        self.handlers[handler_name](**ele)  # type: ignore[operator]
         self.texts = {}  # reset modified entries for the next page
 
 

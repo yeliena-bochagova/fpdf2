@@ -360,7 +360,6 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
 
         self._angle: float = 0  # used by deprecated method: rotate()
         self.xmp_metadata = None
-        self.pdf_x_mode = False
         # Define the compression algorithm used when embedding images:
         self.page_duration = 0  # optional pages display duration, cf. add_page()
         self.page_transition = None  # optional pages transition, cf. add_page()
@@ -1176,27 +1175,6 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
             new_page=not self._has_next_page(),
         )
 
-        # Updated PDF/X Page Boxes logic with rounding
-        if getattr(self, "pdf_x_mode", False):
-            bleed_mm = 3.0
-            b_pt = bleed_mm * self.k
-            current_page = self.pages[self.page]
-
-            # rounding to 2 decimal places for consistency in the PDF source
-            w_pt = round(self.w * self.k, 2)
-            h_pt = round(self.h * self.k, 2)
-            b_val = round(b_pt, 2)
-
-            # Use PDFArray with rounded floats
-            current_page.trim_box = PDFArray([0.0, 0.0, w_pt, h_pt])
-
-            b_coords = [-b_val, -b_val, w_pt + b_val, h_pt + b_val]
-            current_page.bleed_box = PDFArray(b_coords)
-
-            # MediaBox formatting (already has .2f in your code, which is good)
-            current_page.media_box = f"[{b_coords[0]:.2f} {b_coords[1]:.2f} {b_coords[2]:.2f} {b_coords[3]:.2f}]"
-        # -----------------------------------------------------
-
         self.pages[self.page].set_page_label(current_page_label, new_page_label)
 
         if self.page_background:
@@ -1258,7 +1236,6 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
             self._write_dash_pattern(
                 dash_pattern["dash"], dash_pattern["gap"], dash_pattern["phase"]
             )
-
         # END Page header
 
     def _render_footer(self) -> None:
@@ -2712,13 +2689,6 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
         self.font_size_pt = size
         self.current_font = self.fonts[fontkey]
         self.current_font_is_set_on_page = False
-
-        if self.pdf_x_mode and self.current_font and self.current_font.type != "TTF":
-            raise FPDFException(
-                f"PDF/X mode requires all fonts to be embedded. "
-                f"The core font '{family}' cannot be used. "
-                "Please use add_font() to embed a TrueType or OpenType font."
-            )
 
     def set_font_size(self, size: float) -> None:
         """
@@ -6554,13 +6524,6 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
                             substitution_item.render_text_substitution(
                                 str(self.pages_count)
                             ).encode("latin-1"),
-                        )
-            if self.pdf_x_mode:
-                for _, font in self.fonts.items():
-                    if font.type != "TTF":
-                        raise FPDFException(
-                            f"PDF/X export failed: font '{font.fontkey}' is not embedded. "
-                            "All fonts must be embedded via add_font() in PDF/X mode."
                         )
             for _, font in self.fonts.items():
                 if isinstance(font, TTFFont) and font.color_font:
