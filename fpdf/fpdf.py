@@ -18,6 +18,7 @@ import re
 import sys
 import types
 import warnings
+from copy import copy as shallow_copy, deepcopy
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -180,6 +181,7 @@ from .util import (
     get_parsed_unicode_range,
     get_scale_factor,
 )
+from .xmp import XMPManager
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -473,6 +475,7 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
 
         # final buffer holding the PDF document in-memory - defined only after calling output():
         self.buffer: Optional[bytearray] = None
+        self._last_output_pdf_x_mode: Optional[str] = None
 
     @property
     def fonts(self) -> dict[str, CoreFont | TTFFont]:
@@ -981,6 +984,34 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
         self.xmp_metadata = xmp_metadata
         if xmp_metadata:
             self._set_min_pdf_version("1.4")
+
+    def set_pdfx_xmp_metadata(
+        self,
+        *,
+        pdf_x_mode: str = XMPManager.DEFAULT_PDFX_MODE,
+        creator_tool: str = "fpdf2",
+        title: str = "",
+        description: str = "",
+        creator: str | Sequence[str] = (),
+        keywords: str | Sequence[str] = (),
+        producer: str = "",
+    ) -> None:
+        """
+        Generate and attach PDF/X identification XMP metadata.
+
+        This helper only generates XMP metadata and stores it through
+        ``set_xmp_metadata()``. It does not implement full PDF/X compliance.
+        """
+        xmp = XMPManager(
+            pdf_x_mode=pdf_x_mode,
+            creator_tool=creator_tool,
+            title=title,
+            description=description,
+            creator=creator,
+            keywords=keywords,
+            producer=producer,
+        )
+        self.set_xmp_metadata(xmp.build_xmp())
 
     def set_doc_option(self, opt: Literal["core_fonts_encoding"], value: str) -> None:
         """
@@ -6670,6 +6701,8 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
         *,
         linearize: bool = False,
         output_producer_class: Type[OutputProducer] = OutputProducer,
+        pdf_x: Optional[bool] = None,
+        pdf_x_mode: Optional[str] = None,
     ) -> bytearray: ...
     @overload
     def output(
@@ -6678,6 +6711,8 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
         *,
         linearize: bool = False,
         output_producer_class: Type[OutputProducer] = OutputProducer,
+        pdf_x: Optional[bool] = None,
+        pdf_x_mode: Optional[str] = None,
     ) -> None: ...
     @deprecated_parameter([("dest", "2.2.0")])
     def output(
@@ -6686,6 +6721,8 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
         *,
         linearize: bool = False,
         output_producer_class: Type[OutputProducer] = OutputProducer,
+        pdf_x: Optional[bool] = None,
+        pdf_x_mode: Optional[str] = None,
     ) -> Optional[bytearray]:
         """
         Output PDF to some destination.
@@ -6698,9 +6735,35 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
         Args:
             name (str): optional File object or file path where to save the PDF under
             output_producer_class (class): use a custom class for PDF file generation
+            pdf_x (bool): enable PDF/X export using the default mode `PDF/X-1a:2001`
+            pdf_x_mode (str): explicitly select a PDF/X export mode
         """
         # Clear cache of cached functions to free up memory after output
         get_unicode_script.cache_clear()
+        pdf_x_requested = self._normalize_pdf_x_request(pdf_x, pdf_x_mode)
+        if self.buffer and self._last_output_pdf_x_mode == pdf_x_requested:
+            if name:
+                if isinstance(name, (str, os.PathLike)):
+                    Path(name).write_bytes(self.buffer)
+                else:
+                    name.write(self.buffer)
+                return None
+            return self.buffer
+        if self.buffer and self._last_output_pdf_x_mode != pdf_x_requested:
+            if linearize:
+                output_producer_class = LinearizedOutputProducer
+            self.buffer = self._bufferize_output(
+                output_producer_class=output_producer_class,
+                pdf_x_requested=pdf_x_requested,
+            )
+            self._last_output_pdf_x_mode = pdf_x_requested
+            if name:
+                if isinstance(name, (str, os.PathLike)):
+                    Path(name).write_bytes(self.buffer)
+                else:
+                    name.write(self.buffer)
+                return None
+            return self.buffer
         # Finish document if necessary:
         if not self.buffer:
             if self.page == 0:
@@ -6755,8 +6818,11 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
                     )
             if linearize:
                 output_producer_class = LinearizedOutputProducer
-            output_producer = output_producer_class(self)
-            self.buffer = output_producer.bufferize()
+            self.buffer = self._bufferize_output(
+                output_producer_class=output_producer_class,
+                pdf_x_requested=pdf_x_requested,
+            )
+            self._last_output_pdf_x_mode = pdf_x_requested
         if name:
             if isinstance(name, (str, os.PathLike)):
                 Path(name).write_bytes(self.buffer)
@@ -6764,6 +6830,57 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
                 name.write(self.buffer)
             return None
         return self.buffer
+
+    def _bufferize_output(
+        self,
+        *,
+        output_producer_class: Type[OutputProducer],
+        pdf_x_requested: Optional[str],
+    ) -> bytearray:
+        output_pdf = shallow_copy(self)
+        output_pdf.buffer = None
+        # Preserve live embedded-file objects so copied annotations keep the
+        # same FileSpec/EmbeddedFile identity that receives object IDs during
+        # serialization.
+        deepcopy_memo: dict[int, object] = {
+            id(embedded_file): embedded_file for embedded_file in self.embedded_files
+        }
+        for embedded_file in self.embedded_files:
+            file_spec = embedded_file.file_spec()
+            deepcopy_memo[id(file_spec)] = file_spec
+        output_pdf.pages = deepcopy(self.pages, deepcopy_memo)
+        if pdf_x_requested:
+            # pylint: disable=protected-access
+            output_pdf._ensure_pdfx_xmp_metadata(pdf_x_requested)
+        output_producer = output_producer_class(output_pdf)
+        return output_producer.bufferize()
+
+    @staticmethod
+    def _normalize_pdf_x_request(
+        pdf_x: Optional[bool], pdf_x_mode: Optional[str]
+    ) -> Optional[str]:
+        if pdf_x is False and pdf_x_mode is not None:
+            raise ValueError(
+                "pdf_x=False cannot be combined with pdf_x_mode; use pdf_x_mode alone or pdf_x=True"
+            )
+        if pdf_x_mode is not None:
+            return XMPManager(pdf_x_mode=pdf_x_mode).pdf_x_mode
+        if pdf_x:
+            return XMPManager.DEFAULT_PDFX_MODE
+        return None
+
+    def _ensure_pdfx_xmp_metadata(self, pdf_x_mode: str) -> None:
+        if self.xmp_metadata:
+            if self._xmp_metadata_includes_pdfx_mode(pdf_x_mode):
+                return
+            raise ValueError(
+                "PDF/X export requires PDF/X identification XMP, but custom XMP metadata is already set and cannot be safely merged"
+            )
+        self.set_pdfx_xmp_metadata(pdf_x_mode=pdf_x_mode)
+
+    def _xmp_metadata_includes_pdfx_mode(self, pdf_x_mode: str) -> bool:
+        xmp_metadata = self.xmp_metadata or ""
+        return "pdfxid:GTS_PDFXVersion" in xmp_metadata and pdf_x_mode in xmp_metadata
 
 
 # Pattern from sir Guido Von Rossum: https://stackoverflow.com/a/72911884/636849
