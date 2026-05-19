@@ -184,3 +184,27 @@ The compatibility contract for this API proposal is:
 - PDF/X-related behavior is strictly opt-in.
 
 This keeps migration risk low while enabling staged implementation.
+
+## Week 2 update
+
+Week 2 implements a focused `XMPManager` in `fpdf/xmp.py`.
+
+Implemented decisions:
+
+- PDF/X identification XMP generation is centralized in `XMPManager`.
+- Default mode is `PDF/X-1a:2001`.
+- `XMPManager` validates supported modes and raises `ValueError` for unsupported modes.
+- A convenience method `FPDF.set_pdfx_xmp_metadata()` generates and stores XMP by reusing the existing `set_xmp_metadata()` path.
+
+Current integration level:
+
+- The generated XMP is inserted through the existing metadata stream flow in `OutputProducer._add_xmp_metadata()`.
+- No catalog-level PDF/X conformance markers, OutputIntents, ICC embedding, or color/font/page-box compliance checks are implemented yet.
+
+## Week 3 integration boundary
+
+Week 3 should connect PDF/X mode selection (`pdf_x` / `pdf_x_mode`) to XMP generation and keep this behavior explicit:
+
+- when a PDF/X mode is requested, invoke `XMPManager` consistently in the output flow,
+- preserve user-overridden metadata behavior where appropriate,
+- add broader PDF/X writer-side requirements beyond XMP identification.

@@ -178,6 +178,7 @@ from .util import (
     get_parsed_unicode_range,
     get_scale_factor,
 )
+from .xmp import XMPManager
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -976,6 +977,34 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
         self.xmp_metadata = xmp_metadata
         if xmp_metadata:
             self._set_min_pdf_version("1.4")
+
+    def set_pdfx_xmp_metadata(
+        self,
+        *,
+        pdf_x_mode: str = XMPManager.DEFAULT_PDFX_MODE,
+        creator_tool: str = "fpdf2",
+        title: str = "",
+        description: str = "",
+        creator: str | Sequence[str] = (),
+        keywords: str | Sequence[str] = (),
+        producer: str = "",
+    ) -> None:
+        """
+        Generate and attach PDF/X identification XMP metadata.
+
+        This helper only generates XMP metadata and stores it through
+        ``set_xmp_metadata()``. It does not implement full PDF/X compliance.
+        """
+        xmp = XMPManager(
+            pdf_x_mode=pdf_x_mode,
+            creator_tool=creator_tool,
+            title=title,
+            description=description,
+            creator=creator,
+            keywords=keywords,
+            producer=producer,
+        )
+        self.set_xmp_metadata(xmp.build_xmp())
 
     def set_doc_option(self, opt: Literal["core_fonts_encoding"], value: str) -> None:
         """

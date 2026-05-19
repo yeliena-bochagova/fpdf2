@@ -32,6 +32,7 @@ from .html import HTML2FPDF, HTMLMixin
 from .prefs import ViewerPreferences
 from .template import FlexTemplate, Template
 from .util import get_scale_factor
+from .xmp import XMPManager
 
 try:
     # This module only exists in PyFPDF, it has been removed in fpdf2 since v2.5.7:
@@ -78,6 +79,7 @@ __all__ = [
     "TitleStyle",
     "TextStyle",
     "ViewerPreferences",
+    "XMPManager",
     # Deprecated classes:
     "HTMLMixin",
     "HTML2FPDF",
