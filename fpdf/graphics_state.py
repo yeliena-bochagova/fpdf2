@@ -20,6 +20,7 @@ from .drawing_primitives import (
     convert_to_device_color,
 )
 from .enums import CharVPos, TextEmphasis, TextMode
+from .errors import FPDFException
 from .fonts import CoreFont, FontFace, TTFFont
 
 _DEFAULT_DRAW_COLOR = DeviceGray(0)
@@ -113,6 +114,15 @@ class GraphicsStateMixin:
         "Indicate if a nested graphics state is active"
         return len(self.__statestack) > 1
 
+    def _validate_pdfx_color(
+        self, color: Optional[DeviceRGB | DeviceCMYK | DeviceGray]
+    ) -> None:
+        if getattr(self, "pdf_x_mode", False) and isinstance(color, DeviceRGB):
+            raise FPDFException(
+                "PDF/X mode only allows DeviceCMYK or DeviceGray colors; "
+                "DeviceRGB is not allowed"
+            )
+
     @property
     def draw_color(self) -> Optional[DeviceRGB | DeviceCMYK | DeviceGray]:
         return self.__statestack[-1].draw_color
@@ -122,9 +132,9 @@ class GraphicsStateMixin:
         self,
         v: Optional[ColorInput],
     ) -> None:
-        self.__statestack[-1].draw_color = (
-            None if v is None else convert_to_device_color(v)
-        )
+        draw_color = None if v is None else convert_to_device_color(v)
+        self._validate_pdfx_color(draw_color)
+        self.__statestack[-1].draw_color = draw_color
 
     @property
     def fill_color(self) -> Optional[DeviceRGB | DeviceCMYK | DeviceGray]:
@@ -135,9 +145,9 @@ class GraphicsStateMixin:
         self,
         v: Optional[ColorInput],
     ) -> None:
-        self.__statestack[-1].fill_color = (
-            None if v is None else convert_to_device_color(v)
-        )
+        fill_color = None if v is None else convert_to_device_color(v)
+        self._validate_pdfx_color(fill_color)
+        self.__statestack[-1].fill_color = fill_color
 
     @property
     def text_color(self) -> Optional[DeviceRGB | DeviceCMYK | DeviceGray]:
@@ -148,9 +158,9 @@ class GraphicsStateMixin:
         self,
         v: Optional[ColorInput],
     ) -> None:
-        self.__statestack[-1].text_color = (
-            None if v is None else convert_to_device_color(v)
-        )
+        text_color = None if v is None else convert_to_device_color(v)
+        self._validate_pdfx_color(text_color)
+        self.__statestack[-1].text_color = text_color
 
     @property
     def underline(self) -> bool:
