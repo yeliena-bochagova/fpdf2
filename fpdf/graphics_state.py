@@ -122,6 +122,12 @@ class GraphicsStateMixin:
                 "PDF/X mode only allows DeviceCMYK or DeviceGray colors; "
                 "DeviceRGB is not allowed"
             )
+        if (
+            getattr(self, "pdf_x_mode", False)
+            and color is not None
+            and getattr(color, "a", None) not in (None, 1)
+        ):
+            raise FPDFException("PDF/X mode does not allow transparency in colors")
 
     @property
     def draw_color(self) -> Optional[DeviceRGB | DeviceCMYK | DeviceGray]:

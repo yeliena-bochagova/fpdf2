@@ -97,6 +97,7 @@ from .enums import (
     AnnotationFlag,
     AnnotationName,
     AssociatedFileRelationship,
+    BlendMode,
     CharVPos,
     Corner,
     DocumentCompliance,
@@ -3785,6 +3786,25 @@ class FPDF(GraphicsStateMixin, TextRegionMixin):
                     f"Unsupported setting: {key} - This can be controlled through dash_pattern / draw_color / line_width"
                 )
             if key in GraphicsStyle.MERGE_PROPERTIES:
+                if getattr(self, "pdf_x_mode", False):
+                    if key in ("fill_opacity", "stroke_opacity") and value not in (
+                        None,
+                        GraphicsStyle.INHERIT,
+                        1,
+                        1.0,
+                    ):
+                        raise FPDFException(
+                            "PDF/X mode does not allow transparency; "
+                            f"{key} must be 1"
+                        )
+                    if (
+                        key == "blend_mode"
+                        and value is not GraphicsStyle.INHERIT
+                        and BlendMode.coerce(value) is not BlendMode.NORMAL
+                    ):
+                        raise FPDFException(
+                            "PDF/X mode only allows the Normal blend mode"
+                        )
                 if gs is None:
                     gs = GraphicsStyle()
                 setattr(gs, key, value)
